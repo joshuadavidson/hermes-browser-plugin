@@ -1,0 +1,293 @@
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import pytest
+import requests
+
+import provider as provider_module
+from provider import KernelBrowserProvider
+
+
+class FakeResponse:
+    def __init__(
+        self,
+        *,
+        status_code: int = 200,
+        payload: Any = None,
+        text: str = "",
+    ) -> None:
+        self.status_code = status_code
+        self.payload = payload
+        self.text = text
+
+    @property
+    def ok(self) -> bool:
+        return 200 <= self.status_code < 400
+
+    def json(self) -> Any:
+        if isinstance(self.payload, Exception):
+            raise self.payload
+        return self.payload
+
+
+@pytest.fixture(autouse=True)
+def clear_kernel_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "KERNEL_API_KEY",
+        "KERNEL_BASE_URL",
+        "KERNEL_STEALTH",
+        "KERNEL_HEADLESS",
+        "KERNEL_TIMEOUT_SECONDS",
+        "KERNEL_PROXY_ID",
+        "KERNEL_PROFILE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_is_available_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = KernelBrowserProvider()
+    assert provider.is_available() is False
+
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    assert provider.is_available() is True
+
+
+def test_create_session_uses_default_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    calls: list[dict[str, Any]] = []
+
+    def fake_post(url: str, **kwargs: Any) -> FakeResponse:
+        calls.append({"url": url, **kwargs})
+        return FakeResponse(
+            payload={
+                "session_id": "browser_123",
+                "cdp_ws_url": "wss://example.test/cdp",
+            }
+        )
+
+    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+
+    result = KernelBrowserProvider().create_session("qa")
+
+    assert calls == [
+        {
+            "url": "https://api.onkernel.com/browsers",
+            "headers": {
+                "Authorization": "Bearer kernel_test_key",
+                "Content-Type": "application/json",
+            },
+            "json": {
+                "stealth": True,
+                "headless": True,
+                "name": result["session_name"],
+            },
+            "timeout": 30,
+        }
+    ]
+    assert result["session_name"].startswith("hermes_qa_")
+    assert result["bb_session_id"] == "browser_123"
+    assert result["cdp_url"] == "wss://example.test/cdp"
+    assert result["features"] == {
+        "stealth": True,
+        "headless": True,
+        "custom_timeout": False,
+        "proxies": False,
+        "profile_persistence": False,
+        "live_view": False,
+    }
+    assert "live_view_url" not in result
+
+
+def test_create_session_passes_optional_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setenv("KERNEL_BASE_URL", "https://kernel.example.test/")
+    monkeypatch.setenv("KERNEL_STEALTH", "off")
+    monkeypatch.setenv("KERNEL_HEADLESS", "false")
+    monkeypatch.setenv("KERNEL_TIMEOUT_SECONDS", "600")
+    monkeypatch.setenv("KERNEL_PROXY_ID", "proxy_123")
+    monkeypatch.setenv("KERNEL_PROFILE", "hermes-qa")
+    calls: list[dict[str, Any]] = []
+
+    def fake_post(url: str, **kwargs: Any) -> FakeResponse:
+        calls.append({"url": url, **kwargs})
+        return FakeResponse(
+            payload={
+                "session_id": "browser_456",
+                "cdp_ws_url": "wss://example.test/cdp-456",
+                "browser_live_view_url": "https://example.test/live",
+            }
+        )
+
+    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+
+    result = KernelBrowserProvider().create_session("qa")
+
+    assert calls[0]["url"] == "https://kernel.example.test/browsers"
+    assert calls[0]["json"] == {
+        "stealth": False,
+        "headless": False,
+        "name": result["session_name"],
+        "timeout_seconds": 600,
+        "proxy_id": "proxy_123",
+        "profile": {"name": "hermes-qa", "save_changes": True},
+    }
+    assert result["live_view_url"] == "https://example.test/live"
+    assert result["features"] == {
+        "stealth": False,
+        "headless": False,
+        "custom_timeout": True,
+        "proxies": True,
+        "profile_persistence": True,
+        "live_view": True,
+    }
+
+
+def test_create_session_ignores_invalid_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setenv("KERNEL_TIMEOUT_SECONDS", "later")
+    request_body: dict[str, Any] = {}
+
+    def fake_post(_url: str, **kwargs: Any) -> FakeResponse:
+        request_body.update(kwargs["json"])
+        return FakeResponse(
+            payload={"session_id": "browser_123", "cdp_ws_url": "wss://cdp"}
+        )
+
+    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+
+    with caplog.at_level(logging.WARNING):
+        KernelBrowserProvider().create_session("qa")
+
+    assert "timeout_seconds" not in request_body
+    assert "Ignoring invalid KERNEL_TIMEOUT_SECONDS" in caplog.text
+
+
+def test_create_session_requires_credentials() -> None:
+    with pytest.raises(ValueError, match="KERNEL_API_KEY"):
+        KernelBrowserProvider().create_session("qa")
+
+
+def test_create_session_wraps_connection_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+
+    def fake_post(_url: str, **_kwargs: Any) -> FakeResponse:
+        raise requests.ConnectionError("unreachable")
+
+    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+
+    with pytest.raises(RuntimeError, match="Kernel API connection failed"):
+        KernelBrowserProvider().create_session("qa")
+
+
+def test_create_session_reports_http_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setattr(
+        provider_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse(status_code=403, text="forbidden"),
+    )
+
+    with pytest.raises(RuntimeError, match="403 forbidden"):
+        KernelBrowserProvider().create_session("qa")
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [None, {}, {"session_id": "browser_123"}, ValueError("not json")],
+)
+def test_create_session_rejects_invalid_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: Any,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setattr(
+        provider_module.requests,
+        "post",
+        lambda *_args, **_kwargs: FakeResponse(payload=payload),
+    )
+
+    with pytest.raises(RuntimeError, match="invalid browser payload"):
+        KernelBrowserProvider().create_session("qa")
+
+
+@pytest.mark.parametrize("status_code", [200, 201, 204])
+def test_close_session_accepts_success_statuses(
+    monkeypatch: pytest.MonkeyPatch,
+    status_code: int,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    calls: list[dict[str, Any]] = []
+
+    def fake_delete(url: str, **kwargs: Any) -> FakeResponse:
+        calls.append({"url": url, **kwargs})
+        return FakeResponse(status_code=status_code)
+
+    monkeypatch.setattr(provider_module.requests, "delete", fake_delete)
+
+    assert KernelBrowserProvider().close_session("browser_123") is True
+    assert calls[0]["url"] == "https://api.onkernel.com/browsers/browser_123"
+    assert calls[0]["timeout"] == 10
+
+
+def test_close_session_returns_false_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setattr(
+        provider_module.requests,
+        "delete",
+        lambda *_args, **_kwargs: FakeResponse(status_code=500, text="failed"),
+    )
+
+    assert KernelBrowserProvider().close_session("browser_123") is False
+
+
+def test_close_session_returns_false_on_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+
+    def fake_delete(_url: str, **_kwargs: Any) -> FakeResponse:
+        raise requests.ConnectionError("unreachable")
+
+    monkeypatch.setattr(provider_module.requests, "delete", fake_delete)
+
+    assert KernelBrowserProvider().close_session("browser_123") is False
+
+
+def test_emergency_cleanup_never_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+
+    def fake_delete(_url: str, **_kwargs: Any) -> FakeResponse:
+        raise requests.ConnectionError("unreachable")
+
+    monkeypatch.setattr(provider_module.requests, "delete", fake_delete)
+
+    KernelBrowserProvider().emergency_cleanup("browser_123")
+
+
+def test_setup_schema_exposes_api_key_and_install_hook() -> None:
+    schema = KernelBrowserProvider().get_setup_schema()
+
+    assert schema["name"] == "Kernel"
+    assert schema["env_vars"] == [
+        {
+            "key": "KERNEL_API_KEY",
+            "prompt": "Kernel API key",
+            "url": "https://kernel.sh",
+        }
+    ]
+    assert schema["post_setup"] == "agent_browser"
