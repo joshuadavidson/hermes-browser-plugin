@@ -17,7 +17,7 @@ jobs:
         with:
           repository: NousResearch/hermes-agent
           path: hermes-agent
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.3.2
         with:
           enable-cache: true
           python-version: "3.11"
