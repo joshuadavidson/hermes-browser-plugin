@@ -15,14 +15,25 @@ def test_manifest_declares_kernel_browser_provider() -> None:
     assert manifest["name"] == "browser-kernel"
     assert manifest["manifest_version"] == 1
     assert manifest["kind"] == "backend"
+    assert manifest["version"] == "0.2.0"
     assert manifest["provides_browser_providers"] == ["kernel"]
     assert manifest["requires_env"] == [
         {
             "name": "KERNEL_API_KEY",
             "description": "Kernel API key",
-            "url": "https://kernel.sh",
+            "url": "https://dashboard.onkernel.com/api-keys",
             "secret": True,
         }
+    ]
+    assert manifest["optional_env"] == [
+        {
+            "name": "KERNEL_PROXY_NAME",
+            "description": "Default Kernel proxy name",
+        },
+        {
+            "name": "KERNEL_PROFILE_NAME",
+            "description": "Default Kernel profile name",
+        },
     ]
 
 

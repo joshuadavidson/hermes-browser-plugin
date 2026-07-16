@@ -34,8 +34,11 @@ YAML
 cd "$hermes_dir"
 HERMES_HOME="$hermes_home" KERNEL_API_KEY="integration-test-key" \
   uv run --extra dev python - <<'PY'
+import asyncio
+
 from agent.browser_registry import get_provider, list_providers
 from hermes_cli.plugins import PluginManager
+from hermes_cli.web_server import get_toolset_config
 
 manager = PluginManager()
 manager.discover_and_load()
@@ -46,5 +49,15 @@ assert loaded.enabled, loaded.error
 assert provider is not None
 assert provider.get_setup_schema()["name"] == "Kernel"
 assert "kernel" in {item.name for item in list_providers()}
+
+toolset = asyncio.run(get_toolset_config("browser"))
+kernel = next(item for item in toolset["providers"] if item["name"] == "Kernel")
+assert [item["key"] for item in kernel["env_vars"]] == [
+    "KERNEL_API_KEY",
+    "KERNEL_PROXY_NAME",
+    "KERNEL_PROFILE_NAME",
+]
+assert kernel["is_active"] is True
+assert kernel["post_setup"] == "agent_browser"
 print("Kernel browser provider registered successfully")
 PY

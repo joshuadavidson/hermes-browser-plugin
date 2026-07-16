@@ -19,15 +19,37 @@ Hermes session ends or becomes inactive.
 hermes plugins install kernel/hermes-browser-plugin --enable
 ```
 
-The installer prompts for `KERNEL_API_KEY` and saves it to the active Hermes
-profile's `.env` file. Then select Kernel as the browser provider:
+Some Hermes versions prompt for `KERNEL_API_KEY` during installation and some
+don't. Running `hermes config set browser.cloud_provider kernel` only selects
+the provider; it doesn't set the API key.
+
+### Hermes Desktop
+
+1. Open **Capabilities → Tools → Browser Automation**.
+2. Select **Kernel**.
+3. If `agent_browser` hasn't been installed, click **Run setup** and wait for the
+   one-time installation to finish.
+4. Open the three-dot menu next to `KERNEL_API_KEY` and enter an API key from the
+   [Kernel Dashboard](https://dashboard.onkernel.com/api-keys).
+5. Optionally set `KERNEL_PROXY_NAME` and `KERNEL_PROFILE_NAME` from their
+   three-dot menus.
+6. Restart any running Hermes chat or gateway so it reads the updated settings.
+
+### Hermes CLI
+
+Select Kernel as the browser provider:
 
 ```bash
 hermes config set browser.cloud_provider kernel
 ```
 
-Alternatively, run `hermes setup tools` and choose **Browser Automation →
-Kernel**. Restart a running Hermes CLI or gateway after changing the provider.
+If installation didn't prompt for the API key, add `KERNEL_API_KEY` to the
+active Hermes profile's `.env` file. `hermes config env-path` prints that file's
+location. Install `agent_browser` once if needed:
+
+```bash
+hermes tools post-setup agent_browser
+```
 
 Verify the plugin and configuration:
 
@@ -36,6 +58,16 @@ hermes plugins list
 hermes config show
 hermes doctor
 ```
+
+## Update
+
+Pull the latest plugin version with:
+
+```bash
+hermes plugins update browser-kernel
+```
+
+Restart Hermes Desktop, a running chat, or the gateway after updating.
 
 ## Configuration
 
@@ -47,9 +79,19 @@ Kernel settings are read from the active Hermes profile's `.env` file.
 | `KERNEL_STEALTH` | `true` | Enables Kernel's stealth browser mode |
 | `KERNEL_HEADLESS` | `true` | Set to `false` for a visible browser and live view |
 | `KERNEL_TIMEOUT_SECONDS` | Kernel default | Browser inactivity timeout in seconds |
-| `KERNEL_PROXY_ID` | unset | Attaches an existing Kernel proxy by ID |
-| `KERNEL_PROFILE` | unset | Loads this profile and saves changes when the browser closes |
+| `KERNEL_PROXY_NAME` | unset | Resolves and attaches a Kernel proxy by name |
+| `KERNEL_PROXY_ID` | unset | Attaches a proxy by ID and takes precedence over `KERNEL_PROXY_NAME` |
+| `KERNEL_PROFILE_NAME` | unset | Loads a Kernel profile by name |
+| `KERNEL_PROFILE` | unset | Legacy alias for `KERNEL_PROFILE_NAME` |
 | `KERNEL_BASE_URL` | `https://api.onkernel.com` | Overrides the Kernel API URL |
+
+When `KERNEL_PROFILE_NAME` or `KERNEL_PROFILE` is set, the plugin launches the
+browser with `save_changes: true`. Cookies, logins, and other profile changes are
+saved when the browser ends.
+
+Proxy names aren't required to be unique in Kernel. If more than one proxy has
+the configured name, the plugin stops with an ambiguity error; set
+`KERNEL_PROXY_ID` to select one explicitly.
 
 Boolean variables accept `0`, `false`, `no`, and `off` as false values.
 

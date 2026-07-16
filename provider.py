@@ -21,6 +21,11 @@ def _env_flag(name: str, default: bool) -> bool:
     return value.strip().lower() not in _FALSE_VALUES
 
 
+def _optional_env(name: str) -> str | None:
+    value = os.environ.get(name, "").strip()
+    return value or None
+
+
 class KernelBrowserProvider(BrowserProvider):
     @property
     def name(self) -> str:
@@ -37,7 +42,8 @@ class KernelBrowserProvider(BrowserProvider):
         api_key = os.environ.get("KERNEL_API_KEY")
         if not api_key:
             raise ValueError(
-                "Kernel requires KERNEL_API_KEY. Get an API key at https://kernel.sh"
+                "Kernel requires KERNEL_API_KEY. Get an API key at "
+                "https://dashboard.onkernel.com/api-keys"
             )
         return {
             "api_key": api_key,
@@ -53,12 +59,56 @@ class KernelBrowserProvider(BrowserProvider):
             "Content-Type": "application/json",
         }
 
+    def _resolve_proxy_id(self, config: dict[str, str]) -> str | None:
+        proxy_id = _optional_env("KERNEL_PROXY_ID")
+        if proxy_id:
+            return proxy_id
+
+        proxy_name = _optional_env("KERNEL_PROXY_NAME")
+        if not proxy_name:
+            return None
+
+        try:
+            response = requests.get(
+                f"{config['base_url']}/proxies",
+                headers=self._headers(config["api_key"]),
+                params={"name": proxy_name, "limit": 2},
+                timeout=10,
+            )
+        except requests.RequestException as exc:
+            raise RuntimeError(
+                f"Failed to resolve Kernel proxy {proxy_name!r}: {exc}"
+            ) from exc
+
+        if not response.ok:
+            raise RuntimeError(
+                f"Failed to resolve Kernel proxy {proxy_name!r}: "
+                f"{response.status_code} {response.text[:500]}"
+            )
+
+        try:
+            proxies: list[dict[str, Any]] = response.json()
+            proxy_ids = [proxy["id"] for proxy in proxies]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError("Kernel API returned an invalid proxy list") from exc
+
+        if not proxy_ids:
+            raise ValueError(f"No Kernel proxy named {proxy_name!r} was found")
+        if len(proxy_ids) > 1:
+            raise ValueError(
+                f"Multiple Kernel proxies are named {proxy_name!r}; "
+                "set KERNEL_PROXY_ID instead"
+            )
+        return str(proxy_ids[0])
+
     def create_session(self, task_id: str) -> dict[str, object]:
         config = self._get_config()
         stealth = _env_flag("KERNEL_STEALTH", True)
         headless = _env_flag("KERNEL_HEADLESS", True)
-        proxy_id = os.environ.get("KERNEL_PROXY_ID")
-        profile_name = os.environ.get("KERNEL_PROFILE")
+        proxy_id = self._resolve_proxy_id(config)
+        profile_name = _optional_env("KERNEL_PROFILE_NAME") or _optional_env(
+            "KERNEL_PROFILE"
+        )
         session_name = f"hermes_{task_id}_{uuid.uuid4().hex[:8]}"
 
         body: dict[str, object] = {
@@ -176,8 +226,18 @@ class KernelBrowserProvider(BrowserProvider):
                 {
                     "key": "KERNEL_API_KEY",
                     "prompt": "Kernel API key",
-                    "url": "https://kernel.sh",
-                }
+                    "url": "https://dashboard.onkernel.com/api-keys",
+                },
+                {
+                    "key": "KERNEL_PROXY_NAME",
+                    "prompt": "Default Kernel proxy name (optional)",
+                    "required": False,
+                },
+                {
+                    "key": "KERNEL_PROFILE_NAME",
+                    "prompt": "Default Kernel profile name (optional)",
+                    "required": False,
+                },
             ],
             "post_setup": "agent_browser",
         }

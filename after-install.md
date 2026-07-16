@@ -6,5 +6,11 @@ Set Kernel as Hermes's browser provider:
 hermes config set browser.cloud_provider kernel
 ```
 
-You can also run `hermes setup tools` and select **Browser Automation → Kernel**.
-The installer saves `KERNEL_API_KEY` in your Hermes `.env` file.
+This command only selects the provider; it doesn't set `KERNEL_API_KEY`.
+
+In Hermes Desktop, open **Capabilities → Tools → Browser Automation**, select
+**Kernel**, run the one-time `agent_browser` setup, then use the three-dot menus
+to set `KERNEL_API_KEY` and any optional defaults.
+
+For CLI-only setups, add `KERNEL_API_KEY` to the active profile's `.env` file
+(`hermes config env-path`) and run `hermes tools post-setup agent_browser` once.

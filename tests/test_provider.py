@@ -41,6 +41,8 @@ def clear_kernel_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "KERNEL_HEADLESS",
         "KERNEL_TIMEOUT_SECONDS",
         "KERNEL_PROXY_ID",
+        "KERNEL_PROXY_NAME",
+        "KERNEL_PROFILE_NAME",
         "KERNEL_PROFILE",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -111,7 +113,7 @@ def test_create_session_passes_optional_configuration(
     monkeypatch.setenv("KERNEL_HEADLESS", "false")
     monkeypatch.setenv("KERNEL_TIMEOUT_SECONDS", "600")
     monkeypatch.setenv("KERNEL_PROXY_ID", "proxy_123")
-    monkeypatch.setenv("KERNEL_PROFILE", "hermes-qa")
+    monkeypatch.setenv("KERNEL_PROFILE_NAME", "hermes-qa")
     calls: list[dict[str, Any]] = []
 
     def fake_post(url: str, **kwargs: Any) -> FakeResponse:
@@ -145,6 +147,111 @@ def test_create_session_passes_optional_configuration(
         "proxies": True,
         "profile_persistence": True,
         "live_view": True,
+    }
+
+
+def test_create_session_resolves_proxy_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setenv("KERNEL_PROXY_NAME", "qa-proxy")
+    calls: list[dict[str, Any]] = []
+
+    def fake_get(url: str, **kwargs: Any) -> FakeResponse:
+        calls.append({"method": "get", "url": url, **kwargs})
+        return FakeResponse(payload=[{"id": "proxy_123", "name": "qa-proxy"}])
+
+    def fake_post(url: str, **kwargs: Any) -> FakeResponse:
+        calls.append({"method": "post", "url": url, **kwargs})
+        return FakeResponse(
+            payload={"session_id": "browser_123", "cdp_ws_url": "wss://cdp"}
+        )
+
+    monkeypatch.setattr(provider_module.requests, "get", fake_get)
+    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+
+    KernelBrowserProvider().create_session("qa")
+
+    assert calls[0]["url"] == "https://api.onkernel.com/proxies"
+    assert calls[0]["params"] == {"name": "qa-proxy", "limit": 2}
+    assert calls[1]["json"]["proxy_id"] == "proxy_123"
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ([], "No Kernel proxy"),
+        (
+            [
+                {"id": "proxy_1", "name": "qa-proxy"},
+                {"id": "proxy_2", "name": "qa-proxy"},
+            ],
+            "Multiple Kernel proxies",
+        ),
+    ],
+)
+def test_proxy_name_must_resolve_uniquely(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: list[dict[str, str]],
+    message: str,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setenv("KERNEL_PROXY_NAME", "qa-proxy")
+    monkeypatch.setattr(
+        provider_module.requests,
+        "get",
+        lambda *_args, **_kwargs: FakeResponse(payload=payload),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        KernelBrowserProvider().create_session("qa")
+
+
+def test_proxy_id_takes_precedence_over_proxy_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setenv("KERNEL_PROXY_ID", "proxy_123")
+    monkeypatch.setenv("KERNEL_PROXY_NAME", "ignored-proxy")
+    request_body: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        provider_module.requests,
+        "get",
+        lambda *_args, **_kwargs: pytest.fail("proxy name lookup should not run"),
+    )
+
+    def fake_post(_url: str, **kwargs: Any) -> FakeResponse:
+        request_body.update(kwargs["json"])
+        return FakeResponse(
+            payload={"session_id": "browser_123", "cdp_ws_url": "wss://cdp"}
+        )
+
+    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+
+    KernelBrowserProvider().create_session("qa")
+
+    assert request_body["proxy_id"] == "proxy_123"
+
+
+def test_legacy_profile_name_sets_save_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setenv("KERNEL_PROFILE", "legacy-profile")
+    request_body: dict[str, Any] = {}
+
+    def fake_post(_url: str, **kwargs: Any) -> FakeResponse:
+        request_body.update(kwargs["json"])
+        return FakeResponse(
+            payload={"session_id": "browser_123", "cdp_ws_url": "wss://cdp"}
+        )
+
+    monkeypatch.setattr(provider_module.requests, "post", fake_post)
+
+    KernelBrowserProvider().create_session("qa")
+
+    assert request_body["profile"] == {
+        "name": "legacy-profile",
+        "save_changes": True,
     }
 
 
@@ -287,7 +394,17 @@ def test_setup_schema_exposes_api_key_and_install_hook() -> None:
         {
             "key": "KERNEL_API_KEY",
             "prompt": "Kernel API key",
-            "url": "https://kernel.sh",
-        }
+            "url": "https://dashboard.onkernel.com/api-keys",
+        },
+        {
+            "key": "KERNEL_PROXY_NAME",
+            "prompt": "Default Kernel proxy name (optional)",
+            "required": False,
+        },
+        {
+            "key": "KERNEL_PROFILE_NAME",
+            "prompt": "Default Kernel profile name (optional)",
+            "required": False,
+        },
     ]
     assert schema["post_setup"] == "agent_browser"
