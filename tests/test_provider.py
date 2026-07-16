@@ -39,10 +39,8 @@ def clear_kernel_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "KERNEL_STEALTH",
         "KERNEL_HEADLESS",
         "KERNEL_TIMEOUT_SECONDS",
-        "KERNEL_PROXY_ID",
         "KERNEL_PROXY_NAME",
         "KERNEL_PROFILE_NAME",
-        "KERNEL_PROFILE",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -111,12 +109,16 @@ def test_create_session_passes_optional_configuration(
     monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
     monkeypatch.setenv("KERNEL_BASE_URL", "https://kernel.example.test/")
     monkeypatch.setenv("KERNEL_STEALTH", "off")
-    monkeypatch.setenv("KERNEL_PROXY_ID", "proxy_123")
+    monkeypatch.setenv("KERNEL_PROXY_NAME", "qa-proxy")
     monkeypatch.setenv("KERNEL_PROFILE_NAME", "hermes-qa")
     calls: list[dict[str, Any]] = []
 
+    def fake_get(url: str, **kwargs: Any) -> FakeResponse:
+        calls.append({"method": "get", "url": url, **kwargs})
+        return FakeResponse(payload=[{"id": "proxy_123", "name": "qa-proxy"}])
+
     def fake_post(url: str, **kwargs: Any) -> FakeResponse:
-        calls.append({"url": url, **kwargs})
+        calls.append({"method": "post", "url": url, **kwargs})
         return FakeResponse(
             payload={
                 "session_id": "browser_456",
@@ -125,12 +127,15 @@ def test_create_session_passes_optional_configuration(
             }
         )
 
+    monkeypatch.setattr(provider_module.requests, "get", fake_get)
     monkeypatch.setattr(provider_module.requests, "post", fake_post)
 
     result = KernelBrowserProvider().create_session("qa")
 
-    assert calls[0]["url"] == "https://kernel.example.test/browsers"
-    assert calls[0]["json"] == {
+    assert calls[0]["url"] == "https://kernel.example.test/proxies"
+    assert calls[0]["params"] == {"name": "qa-proxy", "limit": 2}
+    assert calls[1]["url"] == "https://kernel.example.test/browsers"
+    assert calls[1]["json"] == {
         "stealth": False,
         "headless": False,
         "name": result["session_name"],
@@ -201,56 +206,6 @@ def test_proxy_name_must_resolve_uniquely(
 
     with pytest.raises(ValueError, match=message):
         KernelBrowserProvider().create_session("qa")
-
-
-def test_proxy_id_takes_precedence_over_proxy_name(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
-    monkeypatch.setenv("KERNEL_PROXY_ID", "proxy_123")
-    monkeypatch.setenv("KERNEL_PROXY_NAME", "ignored-proxy")
-    request_body: dict[str, Any] = {}
-
-    monkeypatch.setattr(
-        provider_module.requests,
-        "get",
-        lambda *_args, **_kwargs: pytest.fail("proxy name lookup should not run"),
-    )
-
-    def fake_post(_url: str, **kwargs: Any) -> FakeResponse:
-        request_body.update(kwargs["json"])
-        return FakeResponse(
-            payload={"session_id": "browser_123", "cdp_ws_url": "wss://cdp"}
-        )
-
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
-
-    KernelBrowserProvider().create_session("qa")
-
-    assert request_body["proxy_id"] == "proxy_123"
-
-
-def test_legacy_profile_name_sets_save_changes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
-    monkeypatch.setenv("KERNEL_PROFILE", "legacy-profile")
-    request_body: dict[str, Any] = {}
-
-    def fake_post(_url: str, **kwargs: Any) -> FakeResponse:
-        request_body.update(kwargs["json"])
-        return FakeResponse(
-            payload={"session_id": "browser_123", "cdp_ws_url": "wss://cdp"}
-        )
-
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
-
-    KernelBrowserProvider().create_session("qa")
-
-    assert request_body["profile"] == {
-        "name": "legacy-profile",
-        "save_changes": True,
-    }
 
 
 def test_create_session_requires_credentials() -> None:

@@ -33,7 +33,9 @@ the provider; it doesn't set the API key.
    [Kernel Dashboard](https://dashboard.onkernel.com/api-keys).
 5. Optionally set `KERNEL_PROXY_NAME` and `KERNEL_PROFILE_NAME` from their
    three-dot menus.
-6. Restart any running Hermes chat or gateway so it reads the updated settings.
+6. In a terminal, run `hermes config set browser.inactivity_timeout 600` so
+   Hermes's cleanup timer matches the plugin's 10-minute Kernel timeout.
+7. Restart any running Hermes chat or gateway so it reads the updated settings.
 
 Hermes Desktop currently renders every browser-provider setting as a password
 field, even when the plugin marks it as non-secret. `KERNEL_PROXY_NAME` and
@@ -46,6 +48,7 @@ Select Kernel as the browser provider:
 
 ```bash
 hermes config set browser.cloud_provider kernel
+hermes config set browser.inactivity_timeout 600
 ```
 
 If installation didn't prompt for the API key, add `KERNEL_API_KEY` to the
@@ -83,22 +86,20 @@ Kernel settings are read from the active Hermes profile's `.env` file.
 | `KERNEL_API_KEY` | required | Authenticates requests to Kernel |
 | `KERNEL_STEALTH` | `true` | Enables Kernel's stealth browser mode |
 | `KERNEL_PROXY_NAME` | unset | Resolves and attaches a Kernel proxy by name |
-| `KERNEL_PROXY_ID` | unset | Attaches a proxy by ID and takes precedence over `KERNEL_PROXY_NAME` |
 | `KERNEL_PROFILE_NAME` | unset | Loads a Kernel profile by name |
-| `KERNEL_PROFILE` | unset | Legacy alias for `KERNEL_PROFILE_NAME` |
 | `KERNEL_BASE_URL` | `https://api.onkernel.com` | Overrides the Kernel API URL |
 
 The plugin always launches a headful browser (`headless: false`) so you can use
 Kernel's live view. Hermes's browser-provider interface only passes a task ID to
 the plugin and doesn't supply a headless preference.
 
-When `KERNEL_PROFILE_NAME` or `KERNEL_PROFILE` is set, the plugin launches the
-browser with `save_changes: true`. Cookies, logins, and other profile changes are
-saved when the browser ends.
+When `KERNEL_PROFILE_NAME` is set, the plugin launches the browser with
+`save_changes: true`. Cookies, logins, and other profile changes are saved when
+the browser ends.
 
 Proxy names aren't required to be unique in Kernel. If more than one proxy has
-the configured name, the plugin stops with an ambiguity error; set
-`KERNEL_PROXY_ID` to select one explicitly.
+the configured name, the plugin stops with an ambiguity error. Rename one so the
+configured name is unique.
 
 Boolean variables accept `0`, `false`, `no`, and `off` as false values.
 
@@ -125,6 +126,12 @@ hermes config set browser.inactivity_timeout 600
 ```
 
 Restart Hermes after changing this setting.
+
+Kernel standby incurs zero browser usage cost only when no CDP, WebDriver, live
+view, or computer-controls client is connected. Hermes keeps an `agent-browser`
+CDP session for each tracked browser, so increasing Hermes's cleanup timer can
+also keep the Kernel browser active longer. The 10-minute setting improves
+session continuity, but it doesn't guarantee ten minutes of zero-cost standby.
 
 ## QA smoke test
 

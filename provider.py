@@ -76,10 +76,6 @@ class KernelBrowserProvider(BrowserProvider):
         }
 
     def _resolve_proxy_id(self, config: dict[str, str]) -> str | None:
-        proxy_id = _optional_env("KERNEL_PROXY_ID")
-        if proxy_id:
-            return proxy_id
-
         proxy_name = _optional_env("KERNEL_PROXY_NAME")
         if not proxy_name:
             return None
@@ -113,7 +109,7 @@ class KernelBrowserProvider(BrowserProvider):
         if len(proxy_ids) > 1:
             raise ValueError(
                 f"Multiple Kernel proxies are named {proxy_name!r}; "
-                "set KERNEL_PROXY_ID instead"
+                "rename one so the configured name is unique"
             )
         return str(proxy_ids[0])
 
@@ -121,9 +117,7 @@ class KernelBrowserProvider(BrowserProvider):
         config = self._get_config()
         stealth = _env_flag("KERNEL_STEALTH", True)
         proxy_id = self._resolve_proxy_id(config)
-        profile_name = _optional_env("KERNEL_PROFILE_NAME") or _optional_env(
-            "KERNEL_PROFILE"
-        )
+        profile_name = _optional_env("KERNEL_PROFILE_NAME")
         session_name = f"hermes_{task_id}_{uuid.uuid4().hex[:8]}"
 
         body: dict[str, object] = {

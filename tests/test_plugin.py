@@ -15,7 +15,7 @@ def test_manifest_declares_kernel_browser_provider() -> None:
     assert manifest["name"] == "browser-kernel"
     assert manifest["manifest_version"] == 1
     assert manifest["kind"] == "backend"
-    assert manifest["version"] == "0.2.3"
+    assert manifest["version"] == "0.3.0"
     assert manifest["provides_browser_providers"] == ["kernel"]
     assert manifest["requires_env"] == [
         {
