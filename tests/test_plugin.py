@@ -15,7 +15,7 @@ def test_manifest_declares_kernel_browser_provider() -> None:
     assert manifest["name"] == "browser-kernel"
     assert manifest["manifest_version"] == 1
     assert manifest["kind"] == "backend"
-    assert manifest["version"] == "0.2.0"
+    assert manifest["version"] == "0.2.1"
     assert manifest["provides_browser_providers"] == ["kernel"]
     assert manifest["requires_env"] == [
         {
@@ -29,10 +29,12 @@ def test_manifest_declares_kernel_browser_provider() -> None:
         {
             "name": "KERNEL_PROXY_NAME",
             "description": "Default Kernel proxy name",
+            "secret": False,
         },
         {
             "name": "KERNEL_PROFILE_NAME",
             "description": "Default Kernel profile name",
+            "secret": False,
         },
     ]
 

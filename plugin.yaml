@@ -1,6 +1,6 @@
 name: browser-kernel
 manifest_version: 1
-version: 0.2.0
+version: 0.2.1
 description: Kernel cloud browser provider for Hermes Agent
 author: Kernel
 kind: backend
@@ -12,7 +12,9 @@ requires_env:
 optional_env:
   - name: KERNEL_PROXY_NAME
     description: Default Kernel proxy name
+    secret: false
   - name: KERNEL_PROFILE_NAME
     description: Default Kernel profile name
+    secret: false
 provides_browser_providers:
   - kernel

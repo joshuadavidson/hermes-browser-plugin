@@ -395,16 +395,29 @@ def test_setup_schema_exposes_api_key_and_install_hook() -> None:
             "key": "KERNEL_API_KEY",
             "prompt": "Kernel API key",
             "url": "https://dashboard.onkernel.com/api-keys",
+            "secret": True,
         },
         {
             "key": "KERNEL_PROXY_NAME",
             "prompt": "Default Kernel proxy name (optional)",
             "required": False,
+            "secret": False,
         },
         {
             "key": "KERNEL_PROFILE_NAME",
             "prompt": "Default Kernel profile name (optional)",
             "required": False,
+            "secret": False,
         },
     ]
     assert schema["post_setup"] == "agent_browser"
+
+
+def test_setup_schema_hides_post_setup_when_agent_browser_is_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(provider_module, "_agent_browser_installed", lambda: True)
+
+    schema = KernelBrowserProvider().get_setup_schema()
+
+    assert "post_setup" not in schema

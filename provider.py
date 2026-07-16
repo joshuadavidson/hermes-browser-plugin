@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import uuid
+from pathlib import Path
 from typing import Any
 
 import requests
+from agent import browser_provider as hermes_browser_provider
 from agent.browser_provider import BrowserProvider
 
 logger = logging.getLogger(__name__)
@@ -24,6 +27,18 @@ def _env_flag(name: str, default: bool) -> bool:
 def _optional_env(name: str) -> str | None:
     value = os.environ.get(name, "").strip()
     return value or None
+
+
+def _agent_browser_installed() -> bool:
+    executable = shutil.which("agent-browser")
+    if executable and Path(executable).exists():
+        return True
+
+    module_path = getattr(hermes_browser_provider, "__file__", None)
+    if not module_path:
+        return False
+    project_root = Path(module_path).resolve().parent.parent
+    return (project_root / "node_modules" / "agent-browser").is_dir()
 
 
 class KernelBrowserProvider(BrowserProvider):
@@ -218,7 +233,7 @@ class KernelBrowserProvider(BrowserProvider):
             logger.debug("Emergency cleanup failed for %s: %s", session_id, exc)
 
     def get_setup_schema(self) -> dict[str, Any]:
-        return {
+        schema: dict[str, Any] = {
             "name": "Kernel",
             "badge": "paid",
             "tag": "Cloud browser with stealth, proxies, profiles, and live view",
@@ -227,17 +242,22 @@ class KernelBrowserProvider(BrowserProvider):
                     "key": "KERNEL_API_KEY",
                     "prompt": "Kernel API key",
                     "url": "https://dashboard.onkernel.com/api-keys",
+                    "secret": True,
                 },
                 {
                     "key": "KERNEL_PROXY_NAME",
                     "prompt": "Default Kernel proxy name (optional)",
                     "required": False,
+                    "secret": False,
                 },
                 {
                     "key": "KERNEL_PROFILE_NAME",
                     "prompt": "Default Kernel profile name (optional)",
                     "required": False,
+                    "secret": False,
                 },
             ],
-            "post_setup": "agent_browser",
         }
+        if not _agent_browser_installed():
+            schema["post_setup"] = "agent_browser"
+        return schema

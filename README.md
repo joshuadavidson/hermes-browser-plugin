@@ -35,6 +35,11 @@ the provider; it doesn't set the API key.
    three-dot menus.
 6. Restart any running Hermes chat or gateway so it reads the updated settings.
 
+Hermes Desktop currently renders every browser-provider setting as a password
+field, even when the plugin marks it as non-secret. `KERNEL_PROXY_NAME` and
+`KERNEL_PROFILE_NAME` are ordinary configuration values; this display behavior
+comes from Hermes Desktop.
+
 ### Hermes CLI
 
 Select Kernel as the browser provider:
