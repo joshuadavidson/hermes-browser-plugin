@@ -37,11 +37,6 @@ the provider; it doesn't set the API key.
    Hermes's cleanup timer matches the plugin's 10-minute Kernel timeout.
 7. Restart any running Hermes chat or gateway so it reads the updated settings.
 
-Hermes Desktop currently renders every browser-provider setting as a password
-field, even when the plugin marks it as non-secret. `KERNEL_PROXY_NAME` and
-`KERNEL_PROFILE_NAME` are ordinary configuration values; this display behavior
-comes from Hermes Desktop.
-
 ### Hermes CLI
 
 Select Kernel as the browser provider:
@@ -89,19 +84,9 @@ Kernel settings are read from the active Hermes profile's `.env` file.
 | `KERNEL_PROFILE_NAME` | unset | Loads a Kernel profile by name |
 | `KERNEL_BASE_URL` | `https://api.onkernel.com` | Overrides the Kernel API URL |
 
-The plugin always launches a headful browser (`headless: false`) so you can use
-Kernel's live view. Hermes's browser-provider interface only passes a task ID to
-the plugin and doesn't supply a headless preference.
-
 When `KERNEL_PROFILE_NAME` is set, the plugin launches the browser with
 `save_changes: true`. Cookies, logins, and other profile changes are saved when
 the browser ends.
-
-Proxy names aren't required to be unique in Kernel. If more than one proxy has
-the configured name, the plugin stops with an ambiguity error. Rename one so the
-configured name is unique.
-
-Boolean variables accept `0`, `false`, `no`, and `off` as false values.
 
 ## Timeouts and cleanup
 
