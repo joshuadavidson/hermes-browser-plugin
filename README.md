@@ -82,13 +82,16 @@ Kernel settings are read from the active Hermes profile's `.env` file.
 | --- | --- | --- |
 | `KERNEL_API_KEY` | required | Authenticates requests to Kernel |
 | `KERNEL_STEALTH` | `true` | Enables Kernel's stealth browser mode |
-| `KERNEL_HEADLESS` | `true` | Set to `false` for a visible browser and live view |
 | `KERNEL_TIMEOUT_SECONDS` | Kernel default | Browser inactivity timeout in seconds |
 | `KERNEL_PROXY_NAME` | unset | Resolves and attaches a Kernel proxy by name |
 | `KERNEL_PROXY_ID` | unset | Attaches a proxy by ID and takes precedence over `KERNEL_PROXY_NAME` |
 | `KERNEL_PROFILE_NAME` | unset | Loads a Kernel profile by name |
 | `KERNEL_PROFILE` | unset | Legacy alias for `KERNEL_PROFILE_NAME` |
 | `KERNEL_BASE_URL` | `https://api.onkernel.com` | Overrides the Kernel API URL |
+
+The plugin always launches a headful browser (`headless: false`) so you can use
+Kernel's live view. Hermes's browser-provider interface only passes a task ID to
+the plugin and doesn't supply a headless preference.
 
 When `KERNEL_PROFILE_NAME` or `KERNEL_PROFILE` is set, the plugin launches the
 browser with `save_changes: true`. Cookies, logins, and other profile changes are

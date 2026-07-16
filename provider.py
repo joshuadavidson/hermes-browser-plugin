@@ -119,7 +119,6 @@ class KernelBrowserProvider(BrowserProvider):
     def create_session(self, task_id: str) -> dict[str, object]:
         config = self._get_config()
         stealth = _env_flag("KERNEL_STEALTH", True)
-        headless = _env_flag("KERNEL_HEADLESS", True)
         proxy_id = self._resolve_proxy_id(config)
         profile_name = _optional_env("KERNEL_PROFILE_NAME") or _optional_env(
             "KERNEL_PROFILE"
@@ -128,7 +127,7 @@ class KernelBrowserProvider(BrowserProvider):
 
         body: dict[str, object] = {
             "stealth": stealth,
-            "headless": headless,
+            "headless": False,
             "name": session_name,
         }
 
@@ -175,7 +174,7 @@ class KernelBrowserProvider(BrowserProvider):
         live_view_url = data.get("browser_live_view_url")
         features: dict[str, object] = {
             "stealth": stealth,
-            "headless": headless,
+            "headless": False,
             "custom_timeout": "timeout_seconds" in body,
             "proxies": bool(proxy_id),
             "profile_persistence": bool(profile_name),

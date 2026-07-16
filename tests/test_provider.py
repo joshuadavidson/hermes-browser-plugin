@@ -60,6 +60,7 @@ def test_create_session_uses_default_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
+    monkeypatch.setenv("KERNEL_HEADLESS", "true")
     calls: list[dict[str, Any]] = []
 
     def fake_post(url: str, **kwargs: Any) -> FakeResponse:
@@ -84,7 +85,7 @@ def test_create_session_uses_default_configuration(
             },
             "json": {
                 "stealth": True,
-                "headless": True,
+                "headless": False,
                 "name": result["session_name"],
             },
             "timeout": 30,
@@ -95,7 +96,7 @@ def test_create_session_uses_default_configuration(
     assert result["cdp_url"] == "wss://example.test/cdp"
     assert result["features"] == {
         "stealth": True,
-        "headless": True,
+        "headless": False,
         "custom_timeout": False,
         "proxies": False,
         "profile_persistence": False,
@@ -110,7 +111,6 @@ def test_create_session_passes_optional_configuration(
     monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
     monkeypatch.setenv("KERNEL_BASE_URL", "https://kernel.example.test/")
     monkeypatch.setenv("KERNEL_STEALTH", "off")
-    monkeypatch.setenv("KERNEL_HEADLESS", "false")
     monkeypatch.setenv("KERNEL_TIMEOUT_SECONDS", "600")
     monkeypatch.setenv("KERNEL_PROXY_ID", "proxy_123")
     monkeypatch.setenv("KERNEL_PROFILE_NAME", "hermes-qa")

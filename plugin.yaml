@@ -1,6 +1,6 @@
 name: browser-kernel
 manifest_version: 1
-version: 0.2.1
+version: 0.2.2
 description: Kernel cloud browser provider for Hermes Agent
 author: Kernel
 kind: backend
