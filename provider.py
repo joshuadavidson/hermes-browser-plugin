@@ -14,6 +14,7 @@ from agent.browser_provider import BrowserProvider
 logger = logging.getLogger(__name__)
 
 _DEFAULT_BASE_URL = "https://api.onkernel.com"
+_DEFAULT_BROWSER_TIMEOUT_SECONDS = 600
 _FALSE_VALUES = {"0", "false", "no", "off"}
 
 
@@ -129,17 +130,8 @@ class KernelBrowserProvider(BrowserProvider):
             "stealth": stealth,
             "headless": False,
             "name": session_name,
+            "timeout_seconds": _DEFAULT_BROWSER_TIMEOUT_SECONDS,
         }
-
-        timeout_seconds = os.environ.get("KERNEL_TIMEOUT_SECONDS")
-        if timeout_seconds:
-            try:
-                body["timeout_seconds"] = int(timeout_seconds)
-            except ValueError:
-                logger.warning(
-                    "Ignoring invalid KERNEL_TIMEOUT_SECONDS value: %s",
-                    timeout_seconds,
-                )
 
         if proxy_id:
             body["proxy_id"] = proxy_id
@@ -175,7 +167,6 @@ class KernelBrowserProvider(BrowserProvider):
         features: dict[str, object] = {
             "stealth": stealth,
             "headless": False,
-            "custom_timeout": "timeout_seconds" in body,
             "proxies": bool(proxy_id),
             "profile_persistence": bool(profile_name),
             "live_view": bool(live_view_url),

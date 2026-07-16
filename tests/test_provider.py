@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import pytest
@@ -61,6 +60,7 @@ def test_create_session_uses_default_configuration(
 ) -> None:
     monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
     monkeypatch.setenv("KERNEL_HEADLESS", "true")
+    monkeypatch.setenv("KERNEL_TIMEOUT_SECONDS", "30")
     calls: list[dict[str, Any]] = []
 
     def fake_post(url: str, **kwargs: Any) -> FakeResponse:
@@ -87,6 +87,7 @@ def test_create_session_uses_default_configuration(
                 "stealth": True,
                 "headless": False,
                 "name": result["session_name"],
+                "timeout_seconds": 600,
             },
             "timeout": 30,
         }
@@ -97,7 +98,6 @@ def test_create_session_uses_default_configuration(
     assert result["features"] == {
         "stealth": True,
         "headless": False,
-        "custom_timeout": False,
         "proxies": False,
         "profile_persistence": False,
         "live_view": False,
@@ -111,7 +111,6 @@ def test_create_session_passes_optional_configuration(
     monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
     monkeypatch.setenv("KERNEL_BASE_URL", "https://kernel.example.test/")
     monkeypatch.setenv("KERNEL_STEALTH", "off")
-    monkeypatch.setenv("KERNEL_TIMEOUT_SECONDS", "600")
     monkeypatch.setenv("KERNEL_PROXY_ID", "proxy_123")
     monkeypatch.setenv("KERNEL_PROFILE_NAME", "hermes-qa")
     calls: list[dict[str, Any]] = []
@@ -143,7 +142,6 @@ def test_create_session_passes_optional_configuration(
     assert result["features"] == {
         "stealth": False,
         "headless": False,
-        "custom_timeout": True,
         "proxies": True,
         "profile_persistence": True,
         "live_view": True,
@@ -253,29 +251,6 @@ def test_legacy_profile_name_sets_save_changes(
         "name": "legacy-profile",
         "save_changes": True,
     }
-
-
-def test_create_session_ignores_invalid_timeout(
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    monkeypatch.setenv("KERNEL_API_KEY", "kernel_test_key")
-    monkeypatch.setenv("KERNEL_TIMEOUT_SECONDS", "later")
-    request_body: dict[str, Any] = {}
-
-    def fake_post(_url: str, **kwargs: Any) -> FakeResponse:
-        request_body.update(kwargs["json"])
-        return FakeResponse(
-            payload={"session_id": "browser_123", "cdp_ws_url": "wss://cdp"}
-        )
-
-    monkeypatch.setattr(provider_module.requests, "post", fake_post)
-
-    with caplog.at_level(logging.WARNING):
-        KernelBrowserProvider().create_session("qa")
-
-    assert "timeout_seconds" not in request_body
-    assert "Ignoring invalid KERNEL_TIMEOUT_SECONDS" in caplog.text
 
 
 def test_create_session_requires_credentials() -> None:

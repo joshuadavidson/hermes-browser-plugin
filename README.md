@@ -82,7 +82,6 @@ Kernel settings are read from the active Hermes profile's `.env` file.
 | --- | --- | --- |
 | `KERNEL_API_KEY` | required | Authenticates requests to Kernel |
 | `KERNEL_STEALTH` | `true` | Enables Kernel's stealth browser mode |
-| `KERNEL_TIMEOUT_SECONDS` | Kernel default | Browser inactivity timeout in seconds |
 | `KERNEL_PROXY_NAME` | unset | Resolves and attaches a Kernel proxy by name |
 | `KERNEL_PROXY_ID` | unset | Attaches a proxy by ID and takes precedence over `KERNEL_PROXY_NAME` |
 | `KERNEL_PROFILE_NAME` | unset | Loads a Kernel profile by name |
@@ -102,6 +101,30 @@ the configured name, the plugin stops with an ambiguity error; set
 `KERNEL_PROXY_ID` to select one explicitly.
 
 Boolean variables accept `0`, `false`, `no`, and `off` as false values.
+
+## Timeouts and cleanup
+
+The plugin always creates Kernel browsers with a 10-minute (`600` second)
+inactivity timeout. There is no plugin setting to override it. Kernel enforces
+this timeout remotely, so it still removes the browser if the Hermes process
+crashes or loses its connection before cleanup runs.
+
+Hermes also has a separate local inactivity timer. It defaults to 120 seconds,
+updates whenever Hermes runs a `browser_*` tool for the session, and checks for
+stale sessions every 30 seconds. When it finds one, Hermes closes its local
+`agent-browser` connection, calls this plugin to delete the Kernel browser, and
+removes the session from its in-memory registry. Normal Hermes process exit also
+runs this cleanup immediately.
+
+Because the timers are independent, Hermes normally deletes an unused browser
+after roughly 2–2.5 minutes, before Kernel's 10-minute timeout. To align the
+Hermes timer with the Kernel timeout, run:
+
+```bash
+hermes config set browser.inactivity_timeout 600
+```
+
+Restart Hermes after changing this setting.
 
 ## QA smoke test
 
