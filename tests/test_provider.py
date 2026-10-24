@@ -90,7 +90,10 @@ def test_create_session_uses_default_configuration(
             "timeout": 30,
         }
     ]
-    assert result["session_name"].startswith("hermes_qa_")
+    session_name = result["session_name"]
+    assert isinstance(session_name, str)
+    assert session_name.startswith("kb_")
+    assert len(session_name) == 11
     assert result["bb_session_id"] == "browser_123"
     assert result["cdp_url"] == "wss://example.test/cdp"
     assert result["features"] == {

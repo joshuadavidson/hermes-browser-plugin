@@ -118,7 +118,7 @@ class KernelBrowserProvider(BrowserProvider):
         stealth = _env_flag("KERNEL_STEALTH", True)
         proxy_id = self._resolve_proxy_id(config)
         profile_name = _optional_env("KERNEL_PROFILE_NAME")
-        session_name = f"hermes_{task_id}_{uuid.uuid4().hex[:8]}"
+        session_name = f"kb_{uuid.uuid4().hex[:8]}"
 
         body: dict[str, object] = {
             "stealth": stealth,
